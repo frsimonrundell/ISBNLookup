@@ -1,0 +1,12 @@
+body {
+    font-family: Sans-Serif;
+  }
+
+p {
+    margin-bottom: 30px;
+}
+
+.brlarge {
+    display: block;
+    margin-bottom: 30px;
+}

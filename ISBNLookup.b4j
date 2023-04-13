@@ -1,0 +1,427 @@
+﻿AppType=JavaFX
+Build1=Default,uk.dotchurch.ISBNLookup
+File1=frmISBN.bjl
+File2=isbn.css
+File3=Loading_icon.gif
+File4=SchoolLibrary.png
+File5=tab1.bjl
+File6=tab2.bjl
+FileGroup1=Default Group
+FileGroup2=Default Group
+FileGroup3=Default Group
+FileGroup4=Default Group
+FileGroup5=Default Group
+FileGroup6=Default Group
+Group=Default Group
+Library1=b4xcollections
+Library10=xui views
+Library2=javaobject
+Library3=jcore
+Library4=jcustomtoast
+Library5=jfx
+Library6=jokhttputils2
+Library7=json
+Library8=minihtmlparser
+Library9=simplemediamanager
+Module1=FileChooserUtils
+NumberOfFiles=6
+NumberOfLibraries=10
+NumberOfModules=1
+Version=9.8
+@EndOfDesignText@
+#Region Project Attributes 
+	#MainFormWidth: 1300
+	#MainFormHeight: 800
+	#PackagerProperty: IncludedModules = javafx.web
+#End Region
+
+
+Sub Process_Globals
+
+	'==========True Global Objects=================
+	Private fx As JFX
+	Private MainForm As Form
+	Private XUI As XUI
+	Private MediaManager As SimpleMediaManager
+	Private Toast As ToastMessageShow
+	Dim FC As FileChooser
+	
+	Public ImageFilename As String
+	Public sStyleSheet As String
+		
+	Private btnABCancel As B4XView
+	Private btnABExit As B4XView
+	Private lblAB5 As B4XView
+	Private lblScreenTitle As B4XView
+	Private pnlAddBook As B4XView
+	Private searchISBN As B4XView
+	Private txtABISBN As B4XView
+	Private bookImage As B4XView
+	Private pnlTab1 As B4XView
+	Private pnlTab2 As B4XView
+	Public tabPane As TabPane
+	Private wbAbeBooks As WebView
+	
+	Private btnCopyISBN As B4XView
+	Private btnCopyTitleAuthor As B4XView
+	Private btnCopyLongDescription As B4XView
+	Private btnCopyShortDescription As B4XView
+	Private btnCopyTotalPrice As B4XView
+	Private txtTotalPrice As B4XView
+	Private txtShortDescription As B4XView
+	Private txtLongDescription As B4XView
+	Private txtFullTitle As B4XView
+	Private wbAmazon As WebView
+End Sub
+
+Sub AppStart (Form1 As Form, Args() As String)
+
+
+	'su.Initialize
+
+	MainForm = Form1
+	MainForm.RootPane.LoadLayout("frmISBN") 
+	
+	tabPane.LoadLayout("tab2", "Abebooks")
+	tabPane.LoadLayout("tab1", "Amazon")
+	
+	sStyleSheet=File.GetUri(File.DirAssets, "isbn.css")
+
+	Toast.Initialize("Toast")
+	Toast.ToastIconSize32x32
+	Toast.ToastDuration = 1 'Toast.TOAST_LONG_DELAY
+	Toast.ToastTextLocation = Toast.TEXT_CENTER
+	Toast.ToastLocation= Toast.TOAST_CENTER
+	Toast.ToastMessageColor = fx.Colors.White
+	
+	FC.Initialize
+	FC.InitialDirectory="C:\Users\Public"
+	
+	wbAbeBooks.LoadHTML("<html><head><link rel=""stylesheet"" href=""" & sStyleSheet & """></head><body><h1>Waiting for a Scan...</h1></body></html>")
+	wbAmazon.LoadHTML("<html><head><link rel=""stylesheet"" href=""" & sStyleSheet & """></head><body><h1>Waiting for a Scan...</h1></body></html>")
+	
+	MediaManager.Initialize
+	MainForm.Show
+	
+	txtABISBN.RequestFocus
+
+End Sub
+
+'=============================================
+' ERROR HANDLING AND HOUSEKEEPING MESSAGAGING
+'=============================================
+Sub Application_Error (Error As Exception, StackTrace As String) As Boolean
+	Log("ERROR " & StackTrace)
+	DialogMsg("ERROR " & StackTrace, MainForm.RootPane)
+	Return True
+End Sub
+
+Sub DialogMsg(sMsg As String, RP As B4XView)
+	
+	Private Dialog As B4XDialog
+	
+	Dialog.Initialize(RP)
+	'Dialog.BodyTextColor=0
+	'Dialog.BackgroundColor=255
+	
+	Dialog.Title="ISBNLookup"
+	Dialog.BlurBackground=True
+	Dialog.ButtonsFont = XUI.CreateDefaultFont(12)
+	
+	Wait For (Dialog.Show(sMsg, "OK", "", "")) Complete (Result As Int)
+	
+End Sub
+
+
+Private Sub btnABExit_Click
+	Private Dialog As B4XDialog
+	
+	Dialog.Initialize(MainForm.RootPane)
+	
+	Dialog.BlurBackground=True
+
+	Wait For (Dialog.Show("Do you want to exit this Application?", "YES", "NO", "")) Complete (Result As Int)
+	If Result = XUI.DialogResponse_Positive Then
+		ExitApplication
+	End If
+	
+End Sub
+
+Private Sub btnABCancel_Click
+	
+	wbAbeBooks.LoadHTML("<html><head><link rel=""stylesheet"" href=""" & sStyleSheet & """></head><body><h1>Waiting for a Scan...</h1></body></html>")
+	wbAmazon.LoadHTML("<html><head><link rel=""stylesheet"" href=""" & sStyleSheet & """></head><body><h1>Waiting for a Scan...</h1></body></html>")
+	txtABISBN.Text=""
+	MediaManager.SetMedia(bookImage, "")
+	txtABISBN.RequestFocus
+	
+	
+End Sub
+
+
+Private Sub txtABISBN_Action
+	
+		searchAmazon
+		searchAbebooks
+	
+End Sub
+
+private Sub getWebData(sURL As String, sOutputFile As String) As ResumableSub
+	
+	Private j As HttpJob
+	Private sDownload As String
+
+	' load data
+	j.Initialize("", Me)
+	j.Download(sURL)
+	Wait For (j) JobDone(j As HttpJob)
+	If j.Success Then
+		sDownload=j.GetString
+		' write to c:\public directory
+		WriteTextWriter(sOutputFile, sDownload)
+	End If
+	j.Release
+	
+	Return sDownload
+	
+End Sub
+
+Private Sub searchAbebooks
+	
+	Dim sContainer As String
+	
+	' show loading gif
+	Private sLoadingGif As String = File.GetUri(File.DirAssets, "Loading_icon.gif")
+	wbAbeBooks.LoadHtml("<html><body><img src=""" & sLoadingGif & """ height=100% width=100%></body></html>")
+	
+	Wait For (getWebData("https://www.abebooks.co.uk/servlet/SearchResults?kn=" & txtABISBN.Text & "&sts=t&cm_sp=SearchF-_-topnav-_-Results&sortbyp=17&ds=20", "abebooksHomePage.txt")) Complete (sContainer As String)
+	
+	Dim itemOne As String = PullText(sContainer, "<a id=""listing_1"" href=""", """ class=""srp-image-link")
+
+		Wait For (getWebData("https://www.abebooks.co.uk" & itemOne, "abebooksDeeperSearch.txt")) Complete (sContainer As String)
+
+		Dim sTitle As String=PullText(sContainer, "<h1 id=""book-title""><span class=""main-heading"">", "</span></h1>")
+		Dim sAuthor As String = PullText(sContainer, "data-csa-c-navigate-identifier=""author""", "</span></a>")
+		sAuthor=PullText(sAuthor, """large"">", "#EOF")
+		
+		Dim sFullTitle As String = sTitle & " - " & sAuthor
+		txtFullTitle.Text=sFullTitle
+	
+		Dim sPrice As String=PullText(sContainer, "id=""book-price"">", "</span>")
+		
+	If sContainer.IndexOf("<span class=""free-shipping"">Free Shipping</span>")<>0 Then
+		Dim sShipping As String = "  0.00"
+	Else
+		Dim sShipping As String = PullText(sContainer, "<span class=""shipping"" id=""shipping-price"">", "</span>")
+	End If
+		
+		Dim totalPrice As Double = NumberFormat(sPrice.SubString(2) + sShipping.SubString(2), 0, 2)
+		txtTotalPrice.Text=totalPrice
+		
+		Dim sText As String = PullText(sContainer, "Bibliographic Details", "About this title")
+		sText=sText.Replace("<p class=""biblio"">", "<li>")
+		sText=sText.Replace("</p>", "</li>")
+		sText=sText.Replace("<div>", "**start**")
+		sText=sText.Replace("</div>", "**end**")
+		
+		Dim sFinal As String =PullText(sText, "**start**", "**end**")
+		
+		'txtShortDescription.Text=HTMLSanitize.Sanitize(sFinal,False)
+		txtShortDescription.Text="<ul>" & sFinal & "</ul>"
+		
+		
+		sFinal=sFinal & "<hr>"
+		sFinal="<h2>"& sTitle & " - " & sAuthor & "</h2>" & sFinal
+		
+		sFinal="Lowest Price: £" & sPrice.SubString(2) & " with Shipping at £" & sShipping.SubString(2) & ".  Total competative price: £" & totalPrice & "<br><hr><br>" & sFinal 
+		
+		Dim sSynopsis As String=PullText(sContainer, "synopsis-title block"">", "review-title block")
+		'Log(sSynopsis)
+		
+		Dim sReview As String = PullText(sContainer, "review-title block"">", "<p class=""review-disclaimer block")
+		'Log(sReview)
+		
+		txtLongDescription.Text=sSynopsis & "<br><br>" & sReview
+			
+	Dim sHTML As String="<html><head><link rel=""stylesheet"" href=""" & sStyleSheet & """></head><body><ul>" & sFinal & "</ul>" & sSynopsis & "<hr>" & sReview & "<hr></body></html>"
+	
+		'sHTML = sHTML.Replace("<br>", "<span class=""brlarge""></span")
+				
+		wbAbeBooks.LoadHtml(sHTML)
+		
+		'now get filename for saving
+		Dim imageSource As String = PullText(sContainer, "<a class=""hero-link"" data-index=""0"" href=""", """ data-faux=""false""")
+		ImageFilename=PullText(imageSource, "https://pictures.abebooks.com/isbn/", "#EOF")
+		'Log("filename is " & ImageFilename)
+		MediaManager.SetMedia(bookImage, imageSource)
+	
+End Sub
+
+Private Sub searchAmazon
+	
+	'https://www.amazon.co.uk/s?k=9780889203747&i=stripbooks&crid=M8HRD2NLBUC7&sprefix=9780889203747%2Cstripbooks%2C67&ref=nb_sb_noss
+	
+	Private sContainer As String
+	Private sAmazonHTML As String
+	Private sDescriptionStartTag As String ="<div id=""bookDescription_feature_div"""
+	Private sDescriptionEndTag As String = "<div id=""legalEUAtf_feature_div"""
+	
+	' show loading gif
+	Private sLoadingGif As String = File.GetUri(File.DirAssets, "Loading_icon.gif")
+	wbAmazon.LoadHtml("<html><body><img src=""" & sLoadingGif & """ height=100% width=100%></body></html>")
+	
+	Wait For (getWebData("https://www.amazon.co.uk/s?k=" & txtABISBN.Text & "&i=stripbooks&crid=M8HRD2NLBUC7&sprefix=" & txtABISBN.Text & "%2Cstripbooks%2C67&ref=nb_sb_noss", "AmazonHomePage.txt")) Complete (sContainer As String)
+
+	Dim sBookLink As String=PullText(sContainer, "/dp/", "/")
+	'Log("DP Book ref is " &sBookLink)
+	sBookLink="https://www.amazon.co.uk/dp/" & sBookLink & "/"
+	
+	Wait For (getWebData(sBookLink, "AmazonBookDetails.txt")) Complete (sContainer As String)
+	
+	Dim sAmazonTitle As String = PullText(sContainer, "<title>", "</title>")
+	sAmazonTitle=sAmazonTitle.Replace(": Amazon.co.uk:", " - ")
+	
+	Dim extractedISBN As String
+	Dim ISBNMatch As Matcher =Regex.Matcher(": (\d+):", sAmazonTitle)
+	Do While ISBNMatch.Find = True ' only expecting one
+		extractedISBN = ISBNMatch.Match
+	Loop
+	
+	sAmazonTitle=sAmazonTitle.Replace(extractedISBN, "")
+	extractedISBN=extractedISBN.Replace(":", "")
+	sAmazonTitle=sAmazonTitle.SubString2(0, sAmazonTitle.Length-6)
+	
+	Dim sDescription As String = PullText(sContainer, sDescriptionStartTag, sDescriptionEndTag)
+	sDescription=PullText(sDescription, "csa-c-is-in-initial-active-row=""false"">", "#EOF")
+	
+	Dim sReview As String = PullText(sContainer, "<h3><span>Review</span></h3>", "</span></p>  </div>      </div>                                 </div>")
+	
+	Dim sProduct As String = PullText(sContainer, "<h2>Product details</h2>", "</ul>")
+	
+	
+	sAmazonHTML="<html><head><link rel=""stylesheet"" href=""" & sStyleSheet & """></head><body><h1>"  & sAmazonTitle & "</h1><h2>ISBN: " & extractedISBN & "</h2>"
+	sAmazonHTML=sAmazonHTML & "<h2>Book Details</h2>" & sProduct & "<br>"
+	sAmazonHTML=sAmazonHTML & "<hr><p>" & sDescription & "</p><br><hr><br><b>Review:</b><p>" & sReview & "<br><br><br></p>"
+	
+	sAmazonHTML = sAmazonHTML & "</body></html>"
+	
+	'sAmazonHTML = sAmazonHTML.Replace("<br>", "<span class=""brlarge""></span")
+	
+	wbAmazon.LoadHtml(sAmazonHTML)
+	
+	
+End Sub
+
+
+
+Private Sub PullText(sLine As String, sStartTag As String, sEndTag As String) As String
+	
+	Private p1 As Int = 0
+	Private p2 As Int = 0
+	
+	If sLine.Length=0 Then
+		Return ""
+	Else
+		p1=sLine.IndexOf(sStartTag) + sStartTag.Length
+		If p1<>0 And sEndTag<> "#EOF" Then p2= sLine.IndexOf2(sEndTag, p1+1)
+		If sEndTag="#EOF" Then p2=sLine.Length
+		If p2=0 Then p2=sLine.Length
+
+		If ((p1=0) Or (p2<1)) Then
+			Return ""
+		Else
+			Return sLine.SubString2(p1, p2)
+		End If
+		
+	End If 'filter empty string
+	
+	
+End Sub
+
+
+
+Private Sub WriteTextWriter(fileName As String, data As String )
+	Dim TextWriter1 As TextWriter
+	' Log("Write: " & data)
+	TextWriter1.Initialize(File.OpenOutput("C:\Users\Public", fileName, True))
+	TextWriter1.WriteLine(data)
+	TextWriter1.Close
+	' Log("Written " & fileName & " to " & "C:\Users\Public\" & fileName)
+End Sub
+
+
+
+Private Sub bookImage_MouseClicked (EventData As MouseEvent)
+	
+	Dim x As B4XBitmap = bookImage.Snapshot
+	
+	If ImageFilename="" Then ImageFilename="export.png"
+	FC.InitialFileName=ImageFilename
+	
+	FC.SetExtensionFilter("Image", Array As String("*.png","*.jpg"))
+	FC.Title="Save Book Image As..."
+	
+	Dim response As String=FC.ShowSave(MainForm)
+	Log("Saving to " & response)
+	Dim filepath As String = response.SubString2(0, response.LastIndexOf("\")+1)
+	Dim filename As String = response.SubString(response.LastIndexOf("\")+1)
+	
+	'copy full location to the clipboard
+	fx.Clipboard.SetString(response)
+	Toast.ToastShow("Image saved to " & response )
+	
+	If response<>"" Then
+	
+		Dim out As OutputStream = File.OpenOutput(filepath, filename, False)
+		x.WriteToStream(out, 100, "PNG")
+		out.Close
+	
+	End If	
+	
+	
+End Sub
+
+
+
+Private Sub btnCopyLongDescription_Click
+	
+	fx.Clipboard.SetString(txtLongDescription.Text)
+	Toast.ToastShow("Long Description Copied to Clipboard")
+	
+End Sub
+
+Private Sub btnCopyShortDescription_Click
+	
+	fx.Clipboard.SetString(txtShortDescription.Text)
+	Toast.ToastShow("Short Description Copied to Clipboard")
+	
+End Sub
+
+Private Sub btnCopyTotalPrice_Click
+	
+	fx.Clipboard.SetString(txtTotalPrice.Text)
+	Toast.ToastShow("Lowest Total Price Copied to Clipboard")
+	
+End Sub
+
+Private Sub btnCopyTitleAuthor_Click
+	
+	fx.Clipboard.SetString(txtFullTitle.Text)
+	Toast.ToastShow("Title and Author Copied to Clipboard")
+	
+End Sub
+
+Private Sub btnCopyISBN_Click
+	
+	fx.Clipboard.SetString(txtABISBN.Text)
+	Toast.ToastShow("ISBN Number Copied to Clipboard")
+	
+End Sub
+
+Private Sub Imglogo_MouseClicked (EventData As MouseEvent)
+	
+	Private sCredits="ISBNLookup v1.1 Created by " & Chr(13) & "Fr. Simon Rundell" & Chr(13) & "simon@rundell.org.uk" & Chr(13) & "simonrundell.com"
+	
+	DialogMsg(sCredits, MainForm.RootPane)
+	
+End Sub
